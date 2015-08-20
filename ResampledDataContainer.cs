@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using FileHelpers;
@@ -44,6 +45,7 @@ namespace MongoDBDatasetConverter
                 throw new NotImplementedException("Invalid String Format");
             }
 
+
             _collectionsContent.Add(collectionName, new List<ResampledData>());
             Console.WriteLine(collectionName);
 
@@ -54,12 +56,52 @@ namespace MongoDBDatasetConverter
 
             using (StreamWriter file = new StreamWriter(outputFileName))
             {
+                List<List<double?>> matrix = new List<List<double?>>();
+
+
                 foreach (var document in documents)
                 {
-                    ResampledData localContent = new ResampledData(document);
-                    _collectionsContent[collectionName].Add(localContent);
-                    file.WriteLine(localContent.ToString());
+                    ResampledData localContent = new ResampledData(document);                    
+                    string s = localContent.ToStringIgnoreTime();
+
+                    //avoid null enties at begining
+                    if (s.Contains("null") && _collectionsContent[collectionName].Count == 0)
+                    {
+                        Console.WriteLine("line null at begining");
+                    }
+                    else
+                    {
+                        matrix.Add(localContent.getSensorData());
+                        _collectionsContent[collectionName].Add(localContent);
+                    }
                 }
+
+                int nbRows = matrix.Count;
+                int nbColumns = matrix[0].Count;
+
+                for (int i = 0; i < nbColumns; i++)
+                {
+                    List<double?> temp = new List<double?>();
+                    for (int j = 0; j < nbRows; j++)
+                    {
+                        temp.Add(matrix[j][i]);
+                    }
+
+                    temp.Smooth();
+                    for (int j = 0; j < nbRows; j++)
+                    {
+                        matrix[j][i] = temp[j];
+                    }
+                }
+
+                for (int index = 0; index < matrix.Count; index++)
+                {
+                    var row = matrix[index];
+                    _collectionsContent[collectionName][index].SetSensorDatas(row);
+                    file.WriteLine(_collectionsContent[collectionName][index].ToStringIgnoreTime());
+                }
+
+                Console.WriteLine();
             }
         }
 
